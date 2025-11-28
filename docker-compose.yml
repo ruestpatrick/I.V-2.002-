@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+  # Development container for HMI development
+  hmi-dev:
+    image: toyota/qt-automotive:6.5.3
+    container_name: corolla-hmi-dev
+    volumes:
+      - ../src/hmi:/workspace/hmi
+      - hmi-build-cache:/workspace/hmi/build
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_QPA_PLATFORM=xcb
+      - QT_AUTO_SCREEN_SCALE_FACTOR=1
+    networks:
+      - toyota-dev-network
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    
+  # Backend services development
+  services-dev:
+    image: toyota/automotive-cpp:latest
+    container_name: corolla-services-dev
+    volumes:
+      - ../src/core:/workspace/core
+      - ../src/connectivity:/workspace/connectivity
+      - ../src/navigation:/workspace/navigation
+      - ../src/media:/workspace/media
+      - ../src/vehicle-interface:/workspace/vehicle-interface
+      - ../src/ota:/workspace/ota
+      - services-build-cache:/workspace/build
+    environment:
+      - CMAKE_BUILD_TYPE=Debug
+      - ENABLE_ASAN=1
+    networks:
+      - toyota-dev-network
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+
+  # CAN bus simulator
+  can-simulator:
+    image: toyota/can-simulator:latest
+    container_name: corolla-can-sim
+    networks:
+      - toyota-dev-network
+    ports:
+      - "5555:5555"
+    environment:
+      - VEHICLE_TYPE=corolla-2026
+      - SIMULATION_MODE=real-time
+    command: can-simulator --config /config/corolla-2026.yaml
+
+  # Mock OTA server for testing
+  ota-server:
+    image: toyota/ota-server-mock:latest
+    container_name: corolla-ota-server
+    networks:
+      - toyota-dev-network
+    ports:
+      - "8443:8443"
+    volumes:
+      - ota-packages:/var/lib/ota/packages
+      - ../deployment/ota-packages:/mnt/packages:ro
+    environment:
+      - LOG_LEVEL=debug
+      - ENABLE_TELEMETRY=true
+
+  # PostgreSQL for storing vehicle telemetry (dev only)
+  postgres:
+    image: postgres:15-alpine
+    container_name: corolla-postgres
+    networks:
+      - toyota-dev-network
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=toyota_multimedia
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=dev_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # Redis for caching and message queue
+  redis:
+    image: redis:7-alpine
+    container_name: corolla-redis
+    networks:
+      - toyota-dev-network
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+  # MQTT broker for vehicle-to-cloud communication
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: corolla-mqtt
+    networks:
+      - toyota-dev-network
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mqtt-data:/mosquitto/data
+
+  # Grafana for monitoring and visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: corolla-grafana
+    networks:
+      - toyota-dev-network
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: corolla-prometheus
+    networks:
+      - toyota-dev-network
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  # Vehicle simulator with full ECU emulation
+  vehicle-simulator:
+    image: toyota/vehicle-simulator:corolla-2026
+    container_name: corolla-vehicle-sim
+    privileged: true
+    networks:
+      - toyota-dev-network
+    ports:
+      - "8080:8080"  # Web UI
+      - "5000:5000"  # API
+    volumes:
+      - ./simulator/config:/config
+    environment:
+      - VEHICLE_MODEL=corolla-2026-premium
+      - ENABLE_GUI=true
+      - SIMULATION_SPEED=1.0
+
+  # Documentation server
+  docs:
+    image: nginx:alpine
+    container_name: corolla-docs
+    networks:
+      - toyota-dev-network
+    ports:
+      - "8000:80"
+    volumes:
+      - ../docs:/usr/share/nginx/html:ro
+
+networks:
+  toyota-dev-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  hmi-build-cache:
+  services-build-cache:
+  ota-packages:
+  postgres-data:
+  redis-data:
+  mqtt-data:
+  grafana-data:
+  prometheus-data:

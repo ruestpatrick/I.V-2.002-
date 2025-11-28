@@ -1,0 +1,70 @@
+{
+  "name": "toyota-corolla-2026-multimedia",
+  "version": "2026.1.0.0",
+  "description": "Toyota Corolla 2026 Multimedia Infotainment System",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.toyota.internal/corolla-2026/multimedia-system.git"
+  },
+  "keywords": [
+    "automotive",
+    "infotainment",
+    "toyota",
+    "corolla",
+    "multimedia",
+    "ota"
+  ],
+  "author": "Toyota Motor Corporation - Multimedia Systems Engineering",
+  "license": "PROPRIETARY",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "./tools/build-scripts/build.sh",
+    "build:hmi": "cd src/hmi && mkdir -p build && cd build && cmake .. && make",
+    "build:services": "cd src/core && mkdir -p build && cd build && cmake .. && make",
+    "build:yocto": "cd deployment/yocto && source oe-init-build-env && bitbake toyota-multimedia-image",
+    "test": "./tools/testing/run-all-tests.sh",
+    "test:unit": "cd build && ctest --output-on-failure",
+    "test:integration": "cd tests/integration && pytest",
+    "test:hil": "cd tests/hardware-in-loop && ./run-hil-tests.sh",
+    "lint": "cpplint --recursive src/",
+    "format": "clang-format -i src/**/*.cpp src/**/*.h",
+    "coverage": "gcovr --xml-pretty --exclude-unreachable-branches --print-summary -o coverage.xml",
+    "deploy:staging": "cd deployment/scripts && ./deploy-to-staging.sh",
+    "deploy:production": "cd deployment/scripts && ./deploy-ota.sh",
+    "rollback": "cd deployment/scripts && ./rollback.sh",
+    "simulator": "docker-compose -f deployment/docker/docker-compose.yml up vehicle-simulator",
+    "dev": "docker-compose -f deployment/docker/docker-compose.yml up",
+    "clean": "rm -rf build/ src/*/build/ deployment/yocto/build/tmp/"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0"
+  },
+  "config": {
+    "targetHardware": "corolla-2026-ecu",
+    "qtVersion": "6.5.3",
+    "yoctoVersion": "kirkstone",
+    "otaServer": "ota.toyota.cloud"
+  },
+  "metadata": {
+    "vehicleType": "corolla",
+    "modelYear": 2026,
+    "region": "north-america",
+    "ecuVariant": "premium",
+    "displaySize": "10.5-inch",
+    "resolution": "1920x1080",
+    "features": [
+      "wireless-carplay",
+      "wireless-android-auto",
+      "cloud-navigation",
+      "wifi-hotspot",
+      "voice-assistant",
+      "ota-updates",
+      "remote-services"
+    ]
+  }
+}
